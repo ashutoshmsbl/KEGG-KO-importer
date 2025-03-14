@@ -33,9 +33,13 @@ for i in range(num_organisms):
     with col1:
         code = st.text_input(f"Enter KEGG Organism Code {i+1}:").strip()
     with col2:
-        name = st.text_input(f"Enter Name for Organism {i+1}:").strip()
+        name = st.text_input(f"Enter Name for Organism {i+1} (Optional):").strip()
 
-    if code and name:
+    # If no name is provided, assign default like "Organism 1", "Organism 2"
+    if not name:
+        name = f"Organism {i+1}"
+
+    if code:
         organisms.append((code, name))
 
 # Fetch KO functions (to store and use later)
@@ -71,7 +75,7 @@ if st.button("Fetch KO Numbers"):
             response.raise_for_status()
 
             # Format Output
-            output += f"# {org_name}\n"  # Use user-provided organism name
+            output += f"# {org_name}\n"  # Use user-provided organism name or default name
             lines = response.text.strip().split("\n")
 
             for line in lines:
