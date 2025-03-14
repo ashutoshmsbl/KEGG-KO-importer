@@ -31,16 +31,21 @@ organisms = []
 for i in range(num_organisms):
     col1, col2 = st.columns(2)  # Side-by-side input fields
     with col1:
-        code = st.text_input(f"Enter KEGG Organism Code {i+1}:").strip()
+        code = st.text_input(f"Enter KEGG Organism Code {i+1}:", key=f"code_{i}").strip()
     with col2:
-        name = st.text_input(f"Enter Name for Organism {i+1} (Optional):").strip()
+        name = st.text_input(f"Enter Name for Organism {i+1} (Optional):", key=f"name_{i}").strip()
 
     # If no name is provided, assign default like "Organism 1", "Organism 2"
     if not name:
         name = f"Organism {i+1}"
 
+    # Only add organisms that have a valid KEGG code
     if code:
         organisms.append((code, name))
+
+# Ensure at least one organism is added before fetching data
+if not organisms:
+    st.warning("Please enter at least one KEGG organism code.")
 
 # Fetch KO functions (to store and use later)
 try:
@@ -61,54 +66,57 @@ except requests.exceptions.RequestException as e:
 
 # Fetch and process data when the button is clicked
 if st.button("Fetch KO Numbers"):
-    st.info("Fetching gene-to-KO mapping...")  # Initial message
-    progress_bar = st.progress(0)  # Initialize progress bar
-    output = ""
+    if not organisms:
+        st.error("No valid organism codes provided! Please enter at least one.")
+    else:
+        st.info("Fetching gene-to-KO mapping...")  # Initial message
+        progress_bar = st.progress(0)  # Initialize progress bar
+        output = ""
 
-    total_organisms = len(organisms)
-    
-    for index, (org_code, org_name) in enumerate(organisms):
-        url = f"http://rest.kegg.jp/link/ko/{org_code}"
+        total_organisms = len(organisms)
+        
+        for index, (org_code, org_name) in enumerate(organisms):
+            url = f"http://rest.kegg.jp/link/ko/{org_code}"
 
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
+            try:
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()
 
-            # Format Output
-            output += f"# {org_name}\n"  # Use user-provided organism name or default name
-            lines = response.text.strip().split("\n")
+                # Format Output
+                output += f"# {org_name}\n"  # Use user-provided organism name or default name
+                lines = response.text.strip().split("\n")
 
-            for line in lines:
-                parts = line.split("\t")
-                if len(parts) == 2:
-                    gene_code = parts[0].split(":")[-1]  # Extract only Gene ID
-                    ko_number = parts[1].split(":")[-1]  # Remove 'ko:' prefix
-                    ko_function = ko_function_dict.get(ko_number, "Function not found")
-                    output += f"{gene_code}\t{ko_number}\t{ko_function}\n"
+                for line in lines:
+                    parts = line.split("\t")
+                    if len(parts) == 2:
+                        gene_code = parts[0].split(":")[-1]  # Extract only Gene ID
+                        ko_number = parts[1].split(":")[-1]  # Remove 'ko:' prefix
+                        ko_function = ko_function_dict.get(ko_number, "Function not found")
+                        output += f"{gene_code}\t{ko_number}\t{ko_function}\n"
 
-            output += "\n"
+                output += "\n"
 
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error fetching data for {org_name}: {e}")
+            except requests.exceptions.RequestException as e:
+                st.error(f"Error fetching data for {org_name}: {e}")
 
-        # Update progress bar
-        progress = int(((index + 1) / total_organisms) * 100)
-        progress_bar.progress(progress)
-        time.sleep(0.5)  # Simulating delay for smooth transition
+            # Update progress bar
+            progress = int(((index + 1) / total_organisms) * 100)
+            progress_bar.progress(progress)
+            time.sleep(0.5)  # Simulating delay for smooth transition
 
-    # Display Output in a text area
-    progress_bar.progress(100)  # Ensure it reaches 100%
-    st.success("Data extraction complete! ✅")
-    st.text_area("Extracted KO Data", output, height=300)
+        # Display Output in a text area
+        progress_bar.progress(100)  # Ensure it reaches 100%
+        st.success("Data extraction complete! ✅")
+        st.text_area("Extracted KO Data", output, height=300)
 
-    # Save as TXT file option
-    if output:
-        st.download_button(
-            label="Save as TXT File",
-            data=output,
-            file_name="kegg_ko_numbers.txt",
-            mime="text/plain"
-        )
+        # Save as TXT file option
+        if output:
+            st.download_button(
+                label="Save as TXT File",
+                data=output,
+                file_name="kegg_ko_numbers.txt",
+                mime="text/plain"
+            )
 
 # Exit Button (To Reset the UI)
 if st.button("Exit"):
