@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import time
 
 # Set page layout and styling
 st.set_page_config(page_title="KEGG KO Extractor", layout="centered")
@@ -57,10 +58,13 @@ except requests.exceptions.RequestException as e:
 
 # Fetch and process data when the button is clicked
 if st.button("Fetch KO Numbers"):
-    st.info("Fetching gene-to-KO mapping... Please wait.")  # Processing message
+    st.info("Fetching gene-to-KO mapping...")  # Initial message
+    progress_bar = st.progress(0)  # Initialize progress bar
     output = ""
 
-    for org_code, org_name in organisms:
+    total_organisms = len(organisms)
+    
+    for index, (org_code, org_name) in enumerate(organisms):
         url = f"http://rest.kegg.jp/link/ko/{org_code}"
 
         try:
@@ -74,7 +78,7 @@ if st.button("Fetch KO Numbers"):
             for line in lines:
                 parts = line.split("\t")
                 if len(parts) == 2:
-                    gene_code = parts[0].split(":")[-1]  # Extract only Gene ID (remove 'eco:')
+                    gene_code = parts[0].split(":")[-1]  # Extract only Gene ID
                     ko_number = parts[1].split(":")[-1]  # Remove 'ko:' prefix
                     ko_function = ko_function_dict.get(ko_number, "Function not found")
                     output += f"{gene_code}\t{ko_number}\t{ko_function}\n"
@@ -84,7 +88,14 @@ if st.button("Fetch KO Numbers"):
         except requests.exceptions.RequestException as e:
             st.error(f"Error fetching data for {org_name}: {e}")
 
+        # Update progress bar
+        progress = int(((index + 1) / total_organisms) * 100)
+        progress_bar.progress(progress)
+        time.sleep(0.5)  # Simulating delay for smooth transition
+
     # Display Output in a text area
+    progress_bar.progress(100)  # Ensure it reaches 100%
+    st.success("Data extraction complete! ✅")
     st.text_area("Extracted KO Data", output, height=300)
 
     # Save as TXT file option
