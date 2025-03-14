@@ -3,7 +3,7 @@ import requests
 import time
 
 # Set page layout and styling
-st.set_page_config(page_title="KEGG KO Extractor", layout="centered")
+st.set_page_config(page_title="G2KO - Gene to KEGG KO Extractor", layout="centered")
 
 # Custom CSS for styling input boxes
 st.markdown(
