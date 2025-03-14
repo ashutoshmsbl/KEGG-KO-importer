@@ -39,7 +39,6 @@ for i in range(num_organisms):
         organisms.append((code, name))
 
 # Fetch KO functions (to store and use later)
-st.info("Fetching KO function descriptions... Please wait.")
 try:
     ko_function_response = requests.get("http://rest.kegg.jp/list/ko", timeout=15)
     ko_function_response.raise_for_status()
