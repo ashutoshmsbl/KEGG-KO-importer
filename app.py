@@ -20,7 +20,7 @@ st.markdown(
 
 # Title and description
 st.title("KEGG KO Extractor")
-st.markdown("Extract gene IDs and KO numbers for KEGG organisms.")
+st.markdown("Extract **Gene ID, KO Numbers, and KO Function Descriptions** from KEGG.")
 
 # Input: Number of organisms
 num_organisms = st.number_input("Enter Number of Organisms:", min_value=1, max_value=10, value=1)
@@ -37,9 +37,27 @@ for i in range(num_organisms):
     if code and name:
         organisms.append((code, name))
 
+# Fetch KO functions (to store and use later)
+st.info("Fetching KO function descriptions... Please wait.")
+try:
+    ko_function_response = requests.get("http://rest.kegg.jp/list/ko", timeout=15)
+    ko_function_response.raise_for_status()
+
+    # Store KO function descriptions in a dictionary
+    ko_function_dict = {}
+    for line in ko_function_response.text.strip().split("\n"):
+        parts = line.split("\t")
+        ko_id = parts[0].split(":")[-1]  # Remove 'ko:' prefix
+        ko_desc = parts[1] if len(parts) > 1 else "Unknown function"
+        ko_function_dict[ko_id] = ko_desc
+
+except requests.exceptions.RequestException as e:
+    st.error(f"Error fetching KO functions: {e}")
+    ko_function_dict = {}
+
 # Fetch and process data when the button is clicked
 if st.button("Fetch KO Numbers"):
-    st.info("Fetching data... Please wait.")  # Processing message
+    st.info("Fetching gene-to-KO mapping... Please wait.")  # Processing message
     output = ""
 
     for org_code, org_name in organisms:
@@ -56,9 +74,10 @@ if st.button("Fetch KO Numbers"):
             for line in lines:
                 parts = line.split("\t")
                 if len(parts) == 2:
-                    gene_id = parts[0].split(":")[-1]  # Remove 'eco:' prefix
+                    gene_code = parts[0].split(":")[-1]  # Extract only Gene ID (remove 'eco:')
                     ko_number = parts[1].split(":")[-1]  # Remove 'ko:' prefix
-                    output += f"{gene_id}\t{ko_number}\n"
+                    ko_function = ko_function_dict.get(ko_number, "Function not found")
+                    output += f"{gene_code}\t{ko_number}\t{ko_function}\n"
 
             output += "\n"
 
