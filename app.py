@@ -20,7 +20,7 @@ st.markdown(
 )
 
 # Title and description
-st.title("KEGG KO Extractor")
+st.title("G2KO - Gene to KEGG KO Extractor")
 st.markdown("Extract **Gene ID, KO Numbers, and KO Function Descriptions** from KEGG.")
 
 # Input: Number of organisms
