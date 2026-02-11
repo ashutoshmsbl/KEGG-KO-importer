@@ -1,123 +1,179 @@
 import streamlit as st
 import requests
-import time
 
-# Set page layout and styling
-st.set_page_config(page_title="G2KO - Gene to KEGG KO Extractor", layout="centered")
+# -------------------------------------------------
+# Page Configuration
+# -------------------------------------------------
+st.set_page_config(
+    page_title="G2KO - Gene to KEGG KO Extractor",
+    layout="centered"
+)
 
-# Custom CSS for styling input boxes
+# -------------------------------------------------
+# Custom Styling
+# -------------------------------------------------
 st.markdown(
     """
     <style>
     .stTextInput>div>div>input {
-        background-color: #f5f5f5 !important;  /* Light grey input box */
+        background-color: #f5f5f5 !important;
         border-radius: 8px !important;
         font-size: 16px !important;
+    }
+    .kegg-link {
+        margin-top: 20px;
+        padding: 12px;
+        background-color: #eef7ff;
+        border-radius: 8px;
+        font-weight: 600;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Title and description
+# -------------------------------------------------
+# Title
+# -------------------------------------------------
 st.title("G2KO - Gene to KEGG KO Extractor")
 st.markdown("Extract **Gene ID, KO Numbers, and KO Function Descriptions** from KEGG.")
 
-# Input: Number of organisms
-num_organisms = st.number_input("Enter Number of Organisms:", min_value=1, max_value=10, value=1)
+# -------------------------------------------------
+# Cache KO Function Database
+# -------------------------------------------------
+@st.cache_data(show_spinner=False)
+def load_ko_functions():
+    try:
+        response = requests.get("http://rest.kegg.jp/list/ko", timeout=20)
+        response.raise_for_status()
 
-# Collect organism codes and user-defined names
+        ko_dict = {}
+        for line in response.text.strip().split("\n"):
+            parts = line.split("\t")
+            if len(parts) >= 2:
+                ko_id = parts[0].split(":")[-1]
+                ko_desc = parts[1]
+                ko_dict[ko_id] = ko_desc
+
+        return ko_dict
+
+    except requests.exceptions.RequestException:
+        return {}
+
+ko_function_dict = load_ko_functions()
+
+# -------------------------------------------------
+# User Input
+# -------------------------------------------------
+num_organisms = st.number_input(
+    "Enter Number of Organisms:",
+    min_value=1,
+    max_value=10,
+    value=1
+)
+
 organisms = []
+
 for i in range(num_organisms):
-    col1, col2 = st.columns(2)  # Side-by-side input fields
+    col1, col2 = st.columns(2)
+
     with col1:
-        code = st.text_input(f"Enter KEGG Organism Code {i+1}:", key=f"code_{i}").strip()
+        code = st.text_input(
+            f"Enter KEGG Organism Code {i+1}:",
+            key=f"code_{i}"
+        ).strip()
+
     with col2:
-        name = st.text_input(f"Enter Name for Organism {i+1} (Optional):", key=f"name_{i}").strip()
+        name = st.text_input(
+            f"Enter Name for Organism {i+1} (Optional):",
+            key=f"name_{i}"
+        ).strip()
 
-    # If no name is provided, assign default like "Organism 1", "Organism 2"
-    if not name:
-        name = f"Organism {i+1}"
-
-    # Only add organisms that have a valid KEGG code
     if code:
+        if not name:
+            name = f"Organism {i+1}"
         organisms.append((code, name))
 
-# Ensure at least one organism is added before fetching data
-if not organisms:
-    st.warning("Please enter at least one KEGG organism code.")
-
-# Fetch KO functions (to store and use later)
-try:
-    ko_function_response = requests.get("http://rest.kegg.jp/list/ko", timeout=15)
-    ko_function_response.raise_for_status()
-
-    # Store KO function descriptions in a dictionary
-    ko_function_dict = {}
-    for line in ko_function_response.text.strip().split("\n"):
-        parts = line.split("\t")
-        ko_id = parts[0].split(":")[-1]  # Remove 'ko:' prefix
-        ko_desc = parts[1] if len(parts) > 1 else "Unknown function"
-        ko_function_dict[ko_id] = ko_desc
-
-except requests.exceptions.RequestException as e:
-    st.error(f"Error fetching KO functions: {e}")
-    ko_function_dict = {}
-
-# Fetch and process data when the button is clicked
+# -------------------------------------------------
+# Fetch Data Button
+# -------------------------------------------------
 if st.button("Fetch KO Numbers"):
-    if not organisms:
-        st.error("No valid organism codes provided! Please enter at least one.")
-    else:
-        st.info("Fetching gene-to-KO mapping...")  # Initial message
-        progress_bar = st.progress(0)  # Initialize progress bar
-        output = ""
 
-        total_organisms = len(organisms)
-        
+    if not organisms:
+        st.error("Please enter at least one valid KEGG organism code.")
+    else:
+        progress_bar = st.progress(0)
+        output = ""
+        total = len(organisms)
+
         for index, (org_code, org_name) in enumerate(organisms):
+
             url = f"http://rest.kegg.jp/link/ko/{org_code}"
 
             try:
-                response = requests.get(url, timeout=10)
+                response = requests.get(url, timeout=15)
                 response.raise_for_status()
 
-                # Format Output
-                output += f"# {org_name}\n"  # Use user-provided organism name or default name
+                output += f"# {org_name}\n"
+
                 lines = response.text.strip().split("\n")
 
                 for line in lines:
                     parts = line.split("\t")
                     if len(parts) == 2:
-                        gene_code = parts[0].split(":")[-1]  # Extract only Gene ID
-                        ko_number = parts[1].split(":")[-1]  # Remove 'ko:' prefix
-                        ko_function = ko_function_dict.get(ko_number, "Function not found")
-                        output += f"{gene_code}\t{ko_number}\t{ko_function}\n"
+                        gene_id = parts[0].split(":")[-1]
+                        ko_id = parts[1].split(":")[-1]
+                        ko_function = ko_function_dict.get(
+                            ko_id,
+                            "Function not found"
+                        )
+
+                        output += f"{gene_id}\t{ko_id}\t{ko_function}\n"
 
                 output += "\n"
 
-            except requests.exceptions.RequestException as e:
-                st.error(f"Error fetching data for {org_name}: {e}")
+            except requests.exceptions.RequestException:
+                st.error(f"Error fetching data for {org_name}")
 
-            # Update progress bar
-            progress = int(((index + 1) / total_organisms) * 100)
+            progress = int(((index + 1) / total) * 100)
             progress_bar.progress(progress)
-            time.sleep(0.5)  # Simulating delay for smooth transition
 
-        # Display Output in a text area
-        progress_bar.progress(100)  # Ensure it reaches 100%
-        st.success("Data extraction complete! ✅")
-        st.text_area("Extracted KO Data", output, height=300)
+        progress_bar.progress(100)
+        st.success("Data extraction complete ✅")
 
-        # Save as TXT file option
+        st.text_area(
+            "Extracted KO Data",
+            output,
+            height=350
+        )
+
         if output:
             st.download_button(
-                label="Save as TXT File",
+                label="Download KO Data as TXT",
                 data=output,
-                file_name="kegg_ko_numbers.txt",
+                file_name="g2ko_output.txt",
                 mime="text/plain"
             )
 
-# Exit Button (To Reset the UI)
-if st.button("Exit"):
+            # -------------------------------------------------
+            # KEGG Mapper Link (Opens in New Tab)
+            # -------------------------------------------------
+            st.markdown(
+                """
+                <div class="kegg-link">
+                ➡️ After downloading your file, click below to open  
+                <a href="https://www.genome.jp/kegg/mapper/reconstruct.html" 
+                   target="_blank">
+                   KEGG Reconstruct Pathway Mapper
+                </a>  
+                (Opens in new tab)
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+# -------------------------------------------------
+# Reset Button
+# -------------------------------------------------
+if st.button("Reset Tool"):
     st.experimental_rerun()
