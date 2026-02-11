@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # -------------------------------------------------
-# Custom Styling
+# Styling
 # -------------------------------------------------
 st.markdown(
     """
@@ -39,12 +39,23 @@ st.title("G2KO - Gene to KEGG KO Extractor")
 st.markdown("Extract **Gene ID, KO Numbers, and KO Function Descriptions** from KEGG.")
 
 # -------------------------------------------------
-# Cache KO Function Database
+# Headers for KEGG requests
+# -------------------------------------------------
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
+
+# -------------------------------------------------
+# Cache KO Function Database (HTTPS + Headers)
 # -------------------------------------------------
 @st.cache_data(show_spinner=False)
 def load_ko_functions():
     try:
-        response = requests.get("http://rest.kegg.jp/list/ko", timeout=20)
+        response = requests.get(
+            "https://rest.kegg.jp/list/ko",
+            headers=HEADERS,
+            timeout=25
+        )
         response.raise_for_status()
 
         ko_dict = {}
@@ -57,7 +68,7 @@ def load_ko_functions():
 
         return ko_dict
 
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
         return {}
 
 ko_function_dict = load_ko_functions()
@@ -95,7 +106,7 @@ for i in range(num_organisms):
         organisms.append((code, name))
 
 # -------------------------------------------------
-# Fetch Data Button
+# Fetch Data
 # -------------------------------------------------
 if st.button("Fetch KO Numbers"):
 
@@ -108,10 +119,14 @@ if st.button("Fetch KO Numbers"):
 
         for index, (org_code, org_name) in enumerate(organisms):
 
-            url = f"http://rest.kegg.jp/link/ko/{org_code}"
+            url = f"https://rest.kegg.jp/link/ko/{org_code}"
 
             try:
-                response = requests.get(url, timeout=15)
+                response = requests.get(
+                    url,
+                    headers=HEADERS,
+                    timeout=20
+                )
                 response.raise_for_status()
 
                 output += f"# {org_name}\n"
@@ -132,8 +147,8 @@ if st.button("Fetch KO Numbers"):
 
                 output += "\n"
 
-            except requests.exceptions.RequestException:
-                st.error(f"Error fetching data for {org_name}")
+            except requests.exceptions.RequestException as e:
+                st.error(f"Error fetching data for {org_name}: {e}")
 
             progress = int(((index + 1) / total) * 100)
             progress_bar.progress(progress)
@@ -155,13 +170,10 @@ if st.button("Fetch KO Numbers"):
                 mime="text/plain"
             )
 
-            # -------------------------------------------------
-            # KEGG Mapper Link (Opens in New Tab)
-            # -------------------------------------------------
             st.markdown(
                 """
                 <div class="kegg-link">
-                ➡️ After downloading your file, click below to open  
+                ➡️ After downloading your file, open  
                 <a href="https://www.genome.jp/kegg/mapper/reconstruct.html" 
                    target="_blank">
                    KEGG Reconstruct Pathway Mapper
@@ -173,7 +185,7 @@ if st.button("Fetch KO Numbers"):
             )
 
 # -------------------------------------------------
-# Reset Button
+# Reset Tool
 # -------------------------------------------------
 if st.button("Reset Tool"):
     st.experimental_rerun()
